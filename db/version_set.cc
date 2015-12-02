@@ -587,6 +587,15 @@ std::string Version::DebugString() const {
   }
   return r;
 }
+void Version::LogStatus() {
+    for (int level = 0; level < config::kNumLevels; level++) {
+        std::vector<FileMetaData*>& files = files_[level];
+        for (size_t i = 0; i < files.size(); i++) {
+            Log(vset_->options_->info_log, "Final file: %ld\n", files[i]->number);
+        }
+    }
+    Log(vset_->options_->info_log, "\n");
+}
 
 // A helper class so we can efficiently apply a whole sequence
 // of edits to a particular state without creating intermediate
@@ -669,6 +678,7 @@ class VersionSet::Builder {
       const int level = iter->first;
       const uint64_t number = iter->second;
       levels_[level].deleted_files.insert(number);
+      Log(vset_->options_->info_log, "VersionEdit recover, deleted_file: %ld\n", number);
     }
 
     // Add new files
@@ -693,9 +703,11 @@ class VersionSet::Builder {
       f->allowed_seeks = (f->file_size / 16384);
       if (f->allowed_seeks < 100) f->allowed_seeks = 100;
 
-      levels_[level].deleted_files.erase(f->number);
+      //levels_[level].deleted_files.erase(f->number);
       levels_[level].added_files->insert(f);
+      Log(vset_->options_->info_log, "VersionEdit recover, added_file: %ld\n", f->number);
     }
+    Log(vset_->options_->info_log, "VersionEdit recover, a round over\n\n");
   }
 
   // Save the current state in *v.
@@ -713,6 +725,7 @@ class VersionSet::Builder {
       for (FileSet::const_iterator added_iter = added->begin();
            added_iter != added->end();
            ++added_iter) {
+        Log(vset_->options_->info_log, "Final file set: added file: %ld\n", (*added_iter)->number);
         // Add all smaller files listed in base_
         for (std::vector<FileMetaData*>::const_iterator bpos
                  = std::upper_bound(base_iter, base_end, *added_iter, cmp);
@@ -722,6 +735,10 @@ class VersionSet::Builder {
         }
 
         MaybeAddFile(v, level, *added_iter);
+      }
+      std::set<uint64_t>::iterator deleted_it = levels_[level].deleted_files.begin();
+      for (; deleted_it != levels_[level].deleted_files.end(); ++deleted_it) {
+        Log(vset_->options_->info_log, "Final file set: deleted file: %ld\n", *deleted_it);
       }
 
       // Add remaining base files
@@ -745,6 +762,8 @@ class VersionSet::Builder {
       }
 #endif
     }
+    Log(vset_->options_->info_log, "Builder save to, a round over\n");
+    v->LogStatus();
   }
 
   void MaybeAddFile(Version* v, int level, FileMetaData* f) {

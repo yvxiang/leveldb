@@ -112,6 +112,7 @@ class Version {
 
   // Return a human readable string that describes this version's contents.
   std::string DebugString() const;
+  void LogStatus();
 
  private:
   friend class Compaction;
